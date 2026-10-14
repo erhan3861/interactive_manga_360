@@ -701,6 +701,9 @@
           <button class="btn-preset mode-btn" id="btn-mode-scene04" onclick="switchSceneMode('scene04')">
             <span>🦌 Sahne 04: Çocuk & Geyik (73 Açı)</span>
           </button>
+          <button class="btn-preset mode-btn" id="btn-mode-scene05" onclick="switchSceneMode('scene05')">
+            <span>🐢 Sahne 05: Kaplumbağa Terbiyecisi</span>
+          </button>
           <button class="btn-preset mode-btn" id="btn-mode-toon" onclick="switchSceneMode('toon')">
             <span>🎨 3D Toon Karakter Şablonu</span>
           </button>
@@ -1238,33 +1241,41 @@
       }
 
       // Update AI Frame Billboard texture based on orbital camera angle (2-Axis Pitch + Yaw)
-      if ((currentMode === 'frames' || currentMode === 'frames_high' || currentMode === 'scene02' || currentMode === 'scene03' || currentMode === 'scene04') && billboardMesh) {
+      if ((currentMode === 'frames' || currentMode === 'frames_high' || currentMode === 'scene02' || currentMode === 'scene03' || currentMode === 'scene04' || currentMode === 'scene05') && billboardMesh) {
         billboardMesh.position.copy(controls.target);
         billboardMesh.lookAt(camera.position);
-        const dx = camera.position.x - controls.target.x;
-        const dy = camera.position.y - controls.target.y;
-        const dz = camera.position.z - controls.target.z;
-        const horizDist = Math.sqrt(dx * dx + dz * dz);
-        const pitchDeg = (Math.atan2(dy, horizDist) * 180) / Math.PI;
-        
-        let deg = (Math.atan2(dx, dz) * 180 / Math.PI + 360) % 360;
-        const frameIdx = Math.min(72, Math.max(0, Math.floor((deg / 360) * 73)));
-        let targetTextures = preloadedFrameTextures;
-        
-        if (currentMode === 'frames_high') {
-          targetTextures = preloadedScene01HighTextures;
-        } else if (currentMode === 'frames') {
-          targetTextures = preloadedFrameTextures;
-        } else if (currentMode === 'scene02' && preloadedScene02Textures.length > 0 && preloadedScene02Textures[frameIdx]) {
-          targetTextures = preloadedScene02Textures;
-        } else if (currentMode === 'scene03' && preloadedScene03Textures.length > 0 && preloadedScene03Textures[frameIdx]) {
-          targetTextures = preloadedScene03Textures;
-        } else if (currentMode === 'scene04' && preloadedScene04Textures.length > 0 && preloadedScene04Textures[frameIdx]) {
-          targetTextures = preloadedScene04Textures;
-        }
-        if (targetTextures[frameIdx]) {
-          billboardMesh.material.map = targetTextures[frameIdx];
-          billboardMesh.material.needsUpdate = true;
+
+        if (currentMode === 'scene05') {
+          if (preloadedScene05Texture && billboardMesh.material.map !== preloadedScene05Texture) {
+            billboardMesh.material.map = preloadedScene05Texture;
+            billboardMesh.material.needsUpdate = true;
+          }
+        } else {
+          const dx = camera.position.x - controls.target.x;
+          const dy = camera.position.y - controls.target.y;
+          const dz = camera.position.z - controls.target.z;
+          const horizDist = Math.sqrt(dx * dx + dz * dz);
+          const pitchDeg = (Math.atan2(dy, horizDist) * 180) / Math.PI;
+          
+          let deg = (Math.atan2(dx, dz) * 180 / Math.PI + 360) % 360;
+          const frameIdx = Math.min(72, Math.max(0, Math.floor((deg / 360) * 73)));
+          let targetTextures = preloadedFrameTextures;
+          
+          if (currentMode === 'frames_high') {
+            targetTextures = preloadedScene01HighTextures;
+          } else if (currentMode === 'frames') {
+            targetTextures = preloadedFrameTextures;
+          } else if (currentMode === 'scene02' && preloadedScene02Textures.length > 0 && preloadedScene02Textures[frameIdx]) {
+            targetTextures = preloadedScene02Textures;
+          } else if (currentMode === 'scene03' && preloadedScene03Textures.length > 0 && preloadedScene03Textures[frameIdx]) {
+            targetTextures = preloadedScene03Textures;
+          } else if (currentMode === 'scene04' && preloadedScene04Textures.length > 0 && preloadedScene04Textures[frameIdx]) {
+            targetTextures = preloadedScene04Textures;
+          }
+          if (targetTextures[frameIdx]) {
+            billboardMesh.material.map = targetTextures[frameIdx];
+            billboardMesh.material.needsUpdate = true;
+          }
         }
       }
 
@@ -1287,10 +1298,14 @@
     let preloadedScene02Textures = [];
     let preloadedScene03Textures = [];
     let preloadedScene04Textures = [];
+    let preloadedScene05Texture = null;
 
     // Preload the 73 generated orbit frames (both Scene 01 and Scene 02)
     function preloadOrbitFrames() {
       const loader = new THREE.TextureLoader();
+      loader.load('kaplumbaga_terbiyecisi.png', (tex) => {
+        preloadedScene05Texture = tex;
+      });
       for (let i = 0; i < 73; i++) {
         const frameNum = String(i).padStart(3, '0');
         loader.load(`frames/frame_${frameNum}.png`, (tex) => {
@@ -1426,6 +1441,18 @@
       const activeBtn = document.getElementById(`btn-mode-${mode}`);
       if (activeBtn) activeBtn.classList.add('active');
 
+      if (mode === 'scene05') {
+        if (billboardMesh) {
+          billboardMesh.scale.set(500 / 935, 1, 1);
+          if (preloadedScene05Texture) {
+            billboardMesh.material.map = preloadedScene05Texture;
+            billboardMesh.material.needsUpdate = true;
+          }
+        }
+      } else if (billboardMesh) {
+        billboardMesh.scale.set(1, 1, 1);
+      }
+
       if (mode === 'ply') {
         if (plyPointsMesh) plyPointsMesh.visible = true;
         if (densePointsMesh) densePointsMesh.visible = false;
@@ -1436,7 +1463,7 @@
         if (densePointsMesh) densePointsMesh.visible = true;
         if (billboardMesh) billboardMesh.visible = false;
         if (characterGroup) characterGroup.visible = false;
-      } else if (mode === 'frames' || mode === 'frames_high' || mode === 'scene02' || mode === 'scene03' || mode === 'scene04') {
+      } else if (mode === 'frames' || mode === 'frames_high' || mode === 'scene02' || mode === 'scene03' || mode === 'scene04' || mode === 'scene05') {
         if (plyPointsMesh) plyPointsMesh.visible = false;
         if (densePointsMesh) densePointsMesh.visible = false;
         if (billboardMesh) billboardMesh.visible = true;
