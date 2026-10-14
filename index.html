@@ -780,6 +780,13 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
+          <div class="toggle-row">
+            <span>3D Zemin Izgarası (Grid Çizgileri)</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-grid" onchange="toggleLayer('grid', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -838,7 +845,7 @@
   <script>
     // Three.js Core Variables
     let scene, camera, renderer, controls;
-    let characterGroup, sfxGroup, particleSystem, swordGroup;
+    let characterGroup, sfxGroup, particleSystem, swordGroup, floorGrid;
     let autoTour = false;
     let orbitSpeed = 0.008;
     const viewport = document.getElementById('viewport-3d');
@@ -1086,11 +1093,12 @@
       scene.add(particleSystem);
     }
 
-    // Manga Floor Grid
+    // Manga Floor Grid (Disabled / off by default)
     function buildMangaFloor() {
-      const grid = new THREE.GridHelper(14, 28, 0xff2a4b, 0x1f2638);
-      grid.position.y = -0.05;
-      scene.add(grid);
+      floorGrid = new THREE.GridHelper(14, 28, 0xff2a4b, 0x1f2638);
+      floorGrid.position.y = -0.05;
+      floorGrid.visible = false; // Başlangıçta kesinlikle KAPALI
+      scene.add(floorGrid);
     }
 
     // Camera Preset Controls
@@ -1175,6 +1183,7 @@
       if (layer === 'sfx' && sfxGroup) sfxGroup.visible = state;
       if (layer === 'particles' && particleSystem) particleSystem.visible = state;
       if (layer === 'sword' && swordGroup) swordGroup.visible = state;
+      if (layer === 'grid' && floorGrid) floorGrid.visible = state;
     }
 
     function onWindowResize() {
