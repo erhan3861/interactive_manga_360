@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Spatial Manga Studio | WebGL 6-DOF Engine (MiniMax-H3 + ORB360)</title>
+  <meta name="description" content="MiniMax-H3 ve ORB360 LoRA ile üretilen çok açılı kareleri gerçek 3D WebGL ve Three.js ortamında serbest kamera açılarıyla kontrol edebildiğiniz yeni nesil interaktif manga deneyimi.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Outfit:wght@300;400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  
+  <!-- Three.js and OrbitControls from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #05070b;
+      --bg-panel: #0d1017;
+      --bg-surface-glass: rgba(16, 21, 31, 0.78);
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      --border-glow: rgba(0, 240, 255, 0.4);
+      --accent-red: #ff2a4b;
+      --accent-cyan: #00f0ff;
+      --accent-gold: #ffbe1a;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-3d: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 240, 255, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 10% 15%, rgba(255, 42, 75, 0.1) 0%, transparent 45%),
+        radial-gradient(circle at 90% 85%, rgba(0, 240, 255, 0.08) 0%, transparent 50%),
+        linear-gradient(180deg, #05070b 0%, #090c12 100%);
+      color: var(--text-main);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.1rem 2.2rem;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(5, 7, 11, 0.88);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .brand-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-red), #990022);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px rgba(255, 42, 75, 0.6);
+      font-weight: 900;
+      font-size: 1.3rem;
+      color: #fff;
+    }
+
+    .brand-title h1 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .brand-title h1 span.pill-engine {
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: 'Space Grotesk', monospace;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .brand-title p {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: 'Space Grotesk', monospace;
+    }
+
+    .header-pills {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      color: #cbd5e1;
+    }
+
+    .status-pill .indicator-green {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+    }
+
+    /* Main Grid */
+    main {
+      flex: 1;
+      max-width: 1480px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 2rem 2.2rem;
+      display: grid;
+      grid-template-columns: 1fr 390px;
+      gap: 2.2rem;
+    }
+
+    @media (max-width: 1120px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Manga Book Page Frame */
+    .manga-page-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+
+    .manga-page-sheet {
+      background: #0f121a;
+      border: 2px solid #2a3142;
+      border-radius: var(--radius-lg);
+      padding: 1.8rem;
+      box-shadow: var(--shadow-3d);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .manga-page-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .manga-page-meta .title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 1px;
+    }
+
+    .manga-page-meta .badge {
+      background: rgba(255, 42, 75, 0.15);
+      color: var(--accent-red);
+      border: 1px solid rgba(255, 42, 75, 0.4);
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* The 3D WebGL Manga Panel */
+    .manga-3d-viewport {
+      position: relative;
+      width: 100%;
+      height: 560px;
+      background: #000;
+      border: 3px solid #f8fafc;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: grab;
+      user-select: none;
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.9);
+    }
+
+    .manga-3d-viewport:active {
+      cursor: grabbing;
+    }
+
+    #three-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* 2D Manga Overlays on Top of 3D Canvas */
+    .manga-screentone {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(0, 0, 0, 0.3) 1px, transparent 1px);
+      background-size: 4px 4px;
+      mix-blend-mode: multiply;
+      opacity: 0.45;
+    }
+
+    .manga-vignette {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.7) 98%);
+    }
+
+    /* Speech Bubble Overlay */
+    .manga-speech-bubble {
+      position: absolute;
+      top: 25px;
+      right: 30px;
+      background: #ffffff;
+      color: #0b0d13;
+      border: 3px solid #000000;
+      border-radius: 26px;
+      padding: 0.85rem 1.4rem;
+      max-width: 280px;
+      font-weight: 800;
+      font-size: 0.88rem;
+      z-index: 20;
+      box-shadow: 5px 6px 0px rgba(0, 0, 0, 0.85);
+      font-family: 'Outfit', sans-serif;
+      line-height: 1.4;
+    }
+
+    .manga-speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: 12px;
+      left: -14px;
+      border-width: 8px 14px 8px 0;
+      border-style: solid;
+      border-color: transparent #000 transparent transparent;
+      display: block;
+      width: 0;
+    }
+
+    /* HUD In-Panel Status */
+    .viewport-hud {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      pointer-events: none;
+    }
+
+    .hud-chip {
+      background: rgba(7, 10, 16, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      padding: 0.45rem 1rem;
+      border-radius: 30px;
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    .hud-chip .badge-spatial {
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+
+    .controls-hint {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(7, 10, 16, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 0.45rem 1rem;
+      border-radius: 30px;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      pointer-events: none;
+      z-index: 25;
+      backdrop-filter: blur(8px);
+    }
+
+    /* Subpanels on same manga page */
+    .manga-secondary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+    }
+
+    .manga-sub-box {
+      background: linear-gradient(135deg, #131722 0%, #1a2030 100%);
+      border: 2px solid #2a3142;
+      border-radius: var(--radius-sm);
+      padding: 1.2rem;
+      min-height: 125px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .manga-sub-box .sub-tag {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .manga-sub-box p {
+      font-size: 0.84rem;
+      color: #e2e8f0;
+      line-height: 1.45;
+    }
+
+    /* Right Sidebar */
+    aside {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .card {
+      background: var(--bg-surface-glass);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1.4rem;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #f8fafc;
+    }
+
+    .card h3 .icon {
+      color: var(--accent-red);
+    }
+
+    /* Camera Preset Angles */
+    .presets-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      margin-bottom: 1rem;
+    }
+
+    .btn-preset {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: #e2e8f0;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.82rem;
+      padding: 0.65rem 0.8rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-preset:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn-preset.active {
+      background: var(--accent-red);
+      color: #ffffff;
+      border-color: var(--accent-red);
+      box-shadow: 0 0 15px rgba(255, 42, 75, 0.5);
+    }
+
+    .btn-full {
+      grid-column: span 2;
+    }
+
+    /* Interactive Sliders for 3D Camera & Effects */
+    .slider-control {
+      margin-top: 0.8rem;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      font-family: 'Space Grotesk', monospace;
+    }
+
+    .slider-header .val {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    /* 3D Scene Layer Toggles */
+    .toggles-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-top: 0.8rem;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      padding: 0.4rem 0;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #2a3142;
+      border-radius: 20px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider::before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: var(--accent-red);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(18px);
+    }
+
+    /* Pipeline Architecture Card */
+    .workflow-step {
+      display: flex;
+      gap: 0.8rem;
+      margin-bottom: 0.9rem;
+      font-size: 0.82rem;
+    }
+
+    .workflow-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-family: 'Space Grotesk', monospace;
+      flex-shrink: 0;
+    }
+
+    .workflow-text h4 {
+      font-size: 0.85rem;
+      color: #fff;
+      margin-bottom: 0.2rem;
+    }
+
+    .workflow-text p {
+      font-size: 0.76rem;
+      color: #94a3b8;
+      line-height: 1.35;
+    }
+
+    /* 3D Asset Loader Dropzone */
+    .dropzone-box {
+      border: 2px dashed rgba(255, 255, 255, 0.18);
+      border-radius: var(--radius-sm);
+      padding: 1.2rem;
+      text-align: center;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.25);
+      transition: all 0.2s ease;
+    }
+
+    .dropzone-box:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 240, 255, 0.05);
+    }
+
+    .dropzone-box .icon {
+      font-size: 1.6rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .dropzone-box .title {
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    .dropzone-box .sub {
+      font-size: 0.7rem;
+      color: #64748b;
+      margin-top: 0.2rem;
+    }
+
+    #asset-file-input {
+      display: none;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 1.4rem 2.2rem;
+      font-size: 0.8rem;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #040609;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="brand">
+      <div class="brand-badge">3D</div>
+      <div class="brand-title">
+        <h1>Spatial Manga Engine <span class="pill-engine">WebGL 3D (Three.js)</span></h1>
+        <p>MiniMax-H3 Ref2VA + ORB360 LoRA • 6-DOF Spatial Viewport</p>
+      </div>
+    </div>
+    <div class="header-pills">
+      <div class="status-pill">
+        <span class="indicator-green"></span>
+        <span>WebGL 3D Context Active</span>
+      </div>
+      <div class="status-pill" style="font-family: 'Space Grotesk', monospace;">
+        <span>LoRA: minimax_h3_orb360_step1500 (100% Loaded)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main>
+    <!-- Left: The Interactive 3D Manga Page -->
+    <section class="manga-page-container">
+      <div class="manga-page-sheet">
+        <div class="manga-page-meta">
+          <div class="title">BÖLÜM 01 // 3D UZAMSAL SAHNE (SPATIAL 360)</div>
+          <div class="badge">PAGE 28 • TRUE 3D SPATIAL PANEL</div>
+        </div>
+
+        <!-- The 3D WebGL Canvas Panel -->
+        <div class="manga-3d-viewport" id="viewport-3d">
+          <canvas id="three-canvas"></canvas>
+          
+          <div class="manga-screentone"></div>
+          <div class="manga-vignette"></div>
+
+          <!-- Speech Bubble -->
+          <div class="manga-speech-bubble">
+            "Kamerayı çevir, sahnenin 360° derinliğini ve detaylarını keşfet!"
+          </div>
+
+          <!-- Real-time Viewport HUD (FOV, Pitch, Yaw) -->
+          <div class="viewport-hud">
+            <div class="hud-chip">
+              <span class="badge-spatial">6-DOF CAMERA</span>
+              <span id="hud-cam-readout">PITCH: 12° | YAW: 0° | DIST: 6.2m</span>
+            </div>
+          </div>
+
+          <div class="controls-hint">
+            <span>🖱️ Sol Tık: 3D Serbest Dönüş | 🔍 Tekerlek: Zoom | 🖱️ Sağ Tık: Pan</span>
+          </div>
+        </div>
+
+        <!-- Manga Subpanels -->
+        <div class="manga-secondary-grid">
+          <div class="manga-sub-box">
+            <span class="sub-tag">01 // DERİNLİK VE PARALLAX</span>
+            <p>Karakter 3D uzayda sabitlenirken; kamera açısıyla birlikte ön ve arka plan katmanları gerçekçi bir derinlik ve hacim hissi yaratır.</p>
+          </div>
+          <div class="manga-sub-box">
+            <span class="sub-tag">02 // 3D NOKTA BULUTU (.PLY)</span>
+            <p>MiniMax-H3 ORB360'ın ürettiği 360° orbital video kareleri taranarak doğrudan gerçek volumetrik nokta bulutu (.ply) olarak entegre edilmiştir.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: 3D Camera Presets, Controls & Real Pipeline Architecture -->
+    <aside>
+      <!-- Scene Mode Selector Card -->
+      <div class="card" style="border: 2px solid rgba(0, 240, 255, 0.4); background: rgba(14, 24, 38, 0.9);">
+        <h3>
+          <span>Aktif 3D Sahne Modu</span>
+          <span class="icon" style="color:var(--accent-cyan);">⚡</span>
+        </h3>
+        <div class="presets-grid" style="grid-template-columns: 1fr;">
+          <button class="btn-preset active mode-btn" id="btn-mode-ply" onclick="switchSceneMode('ply')">
+            <span>🌐 Sahne 01: 3D Nokta Bulutu (.PLY)</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-frames" onclick="switchSceneMode('frames')">
+            <span>🎞️ Sahne 01: Çift Eksen (Yatay + Dikey Açı)</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-frames-high" onclick="switchSceneMode('frames_high')" style="border-color: rgba(255, 190, 26, 0.4); color: #ffbe1a;">
+            <span>🚁 Sahne 01: Tepeden Kuşbakışı (73 Açı)</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-scene02" onclick="switchSceneMode('scene02')">
+            <span>🐿️ Sahne 02: Çocuk & Sincap (73 Açı)</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-scene03" onclick="switchSceneMode('scene03')">
+            <span>🌊 Sahne 03: Nehir & Kuş (73 Açı)</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-scene04" onclick="switchSceneMode('scene04')">
+            <span>🦌 Sahne 04: Çocuk & Geyik (73 Açı)</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-toon" onclick="switchSceneMode('toon')">
+            <span>🎨 3D Toon Karakter Şablonu</span>
+          </button>
+        </div>
+        <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.4rem; line-height:1.4;">
+          MiniMax-H3 çıktısı <code>scene_01_3d_pointcloud.ply</code> doğrudan Three.js sahnesine entegre edilmiştir.
+        </div>
+      </div>
+
+      <!-- Camera Presets Card -->
+      <div class="card">
+        <h3>
+          <span>Sinematik Kamera Açıları</span>
+          <span class="icon">🎬</span>
+        </h3>
+        
+        <div class="presets-grid">
+          <button class="btn-preset active" id="btn-front" onclick="setCameraPreset('front')">Ön Cephe (Front)</button>
+          <button class="btn-preset" id="btn-side" onclick="setCameraPreset('side')">Sağ Profil (Side)</button>
+          <button class="btn-preset" id="btn-back" onclick="setCameraPreset('back')">Arka Cephe (Back)</button>
+          <button class="btn-preset" id="btn-low" onclick="setCameraPreset('low_hero')">Kahraman Alt Açı</button>
+          <button class="btn-preset" id="btn-top" onclick="setCameraPreset('top_down')">Taktik Kuşbakışı</button>
+          <button class="btn-preset" id="btn-close" onclick="setCameraPreset('close_face')">Yakın Çekim Yüz</button>
+          <button class="btn-preset btn-full" id="btn-reset-center" onclick="resetOrbitCenter()" style="border-color: rgba(0, 240, 255, 0.4); color: #00f0ff;">
+            <span>🎯 Yörüngeyi Merkeze Sıfırla (Reset Orbit)</span>
+          </button>
+          <button class="btn-preset btn-full" id="btn-auto-tour" onclick="toggleAutoTour()">
+            <span id="tour-label">▶ Otomatik 360° Sinematik Tur</span>
+          </button>
+        </div>
+
+        <div class="slider-control">
+          <div class="slider-header">
+            <span>FOV (Görüş Açısı / Perspektif)</span>
+            <span class="val" id="fov-val">45°</span>
+          </div>
+          <input type="range" id="fov-slider" min="20" max="90" value="45" oninput="updateFov(this.value)">
+        </div>
+
+        <div class="slider-control">
+          <div class="slider-header">
+            <span>Dönüş Hızı (Auto-Orbit)</span>
+            <span class="val" id="speed-val">1.0x</span>
+          </div>
+          <input type="range" id="speed-slider" min="0.2" max="3.0" step="0.1" value="1.0" oninput="updateSpeed(this.value)">
+        </div>
+      </div>
+
+      <!-- 3D Scene Layer Controls -->
+      <div class="card">
+        <h3>
+          <span>3D Sahne Katmanları</span>
+          <span class="icon">✨</span>
+        </h3>
+        <div class="toggles-list">
+          <div class="toggle-row">
+            <span>3D Karakter Geometrisi & Toon Shader</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-character" checked onchange="toggleLayer('character', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <span>3D Hız Çizgileri & Enerji Parçacıkları</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-particles" onchange="toggleLayer('particles', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="toggle-row">
+            <span>Karakter Kılıcı & Kıvılcımlar</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-sword" checked onchange="toggleLayer('sword', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Architecture Pipeline Card -->
+      <div class="card">
+        <h3>
+          <span>Uçtan Uca 3D Pipeline</span>
+          <span class="icon">⚙️</span>
+        </h3>
+        <div class="workflow-step">
+          <div class="workflow-num">1</div>
+          <div class="workflow-text">
+            <h4>MiniMax-H3 Ref2VA + ORB360</h4>
+            <p>Karakter görseli ve <code>ORB360_CW</code> promptu ile zamanı dondurulmuş 360° döngü videosu üretilir.</p>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-num">2</div>
+          <div class="workflow-text">
+            <h4>MoGe-2 / 3DGS Nokta Bulutu</h4>
+            <p>Üretilen kareler derinlik haritalarıyla eşleştirilip 3D Gaussian Splat (.ply) modeline dönüştürülür.</p>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-num">3</div>
+          <div class="workflow-text">
+            <h4>Three.js WebGL Sahnesi</h4>
+            <p>Okuyucu manga karesi içinde 6 serbestlik derecesiyle kamerayı istediği gibi uçurur.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D Model / Point Cloud Dropzone -->
+      <div class="card">
+        <h3>
+          <span>Özel 3D Model Yükle</span>
+          <span class="icon">📦</span>
+        </h3>
+        <div class="dropzone-box" onclick="document.getElementById('asset-file-input').click()">
+          <div class="icon">📥</div>
+          <div class="title">.PLY (Gaussian Splat) veya .GLTF Yükle</div>
+          <div class="sub">Doğrudan bu manga paneline entegre edilir</div>
+          <input type="file" id="asset-file-input" accept=".ply,.gltf,.glb">
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div>3D Spatial Manga Studio • WebGL & Three.js Engine • monoradio102 Concept Recreation</div>
+    <div>MiniMax-H3 & ORB360 LoRA Pipeline Entegrasyonu</div>
+  </footer>
+
+  <!-- Three.js 3D Scene Initialization Script -->
+  <script>
+    // Three.js Core Variables
+    let scene, camera, renderer, controls;
+    let characterGroup, sfxGroup, particleSystem, swordGroup;
+    let autoTour = false;
+    let orbitSpeed = 0.008;
+    const viewport = document.getElementById('viewport-3d');
+    const canvas = document.getElementById('three-canvas');
+    const hudCamReadout = document.getElementById('hud-cam-readout');
+
+    function init3DScene() {
+      const width = viewport.clientWidth;
+      const height = viewport.clientHeight;
+
+      // 1. Scene setup
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x06080d);
+      scene.fog = new THREE.FogExp2(0x06080d, 0.04);
+
+      // 2. Camera setup
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+      camera.position.set(0, 1.2, 5.5);
+
+      // 3. Renderer setup
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      // 4. Orbit Controls (Full 6-DOF inspection centered on character)
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxDistance = 15;
+      controls.minDistance = 1.5;
+      controls.target.set(0, 0.9, 0);
+      controls.screenSpacePanning = false;
+      renderer.domElement.addEventListener('dblclick', resetOrbitCenter);
+
+      // 5. Lighting (Manga Toon High-Contrast Setup)
+      const ambientLight = new THREE.AmbientLight(0x222633, 1.2);
+      scene.add(ambientLight);
+
+      // Dramatic Rim Light (Cyber Cyan)
+      const rimLight = new THREE.DirectionalLight(0x00f0ff, 2.2);
+      rimLight.position.set(-4, 3, -3);
+      scene.add(rimLight);
+
+      // Key Light (Warm Shonen Crimson)
+      const keyLight = new THREE.DirectionalLight(0xff3355, 2.5);
+      keyLight.position.set(4, 5, 4);
+      keyLight.castShadow = true;
+      scene.add(keyLight);
+
+      // Fill Light
+      const fillLight = new THREE.PointLight(0xffffff, 1.0, 10);
+      fillLight.position.set(0, -1, 3);
+      scene.add(fillLight);
+
+      // 6. Build the 3D Character Model (Toon-Shaded Samurai Hero)
+      buildCharacterModel();
+
+      // 7. 3D Efekt Katmanı
+      build3DOnomatopoeia();
+
+      // 8. Build 3D Manga Speed Lines & Spark Particle Field
+      build3DParticles();
+
+      // 9. Floor Grid with Manga Crosshatching
+      buildMangaFloor();
+
+      // Resize Listener
+      window.addEventListener('resize', onWindowResize);
+
+      // Animation Loop
+      animate();
+    }
+
+    // 3D Character Geometry with Ink Outlines
+    function buildCharacterModel() {
+      characterGroup = new THREE.Group();
+
+      // Cel-shading / Toon Material
+      const bodyMat = new THREE.MeshToonMaterial({
+        color: 0xf4f4f6,
+        gradientMap: null
+      });
+
+      const darkMat = new THREE.MeshToonMaterial({
+        color: 0x11131a
+      });
+
+      const redMat = new THREE.MeshToonMaterial({
+        color: 0xff2a4b
+      });
+
+      const skinMat = new THREE.MeshToonMaterial({
+        color: 0xffebd8
+      });
+
+      const goldMat = new THREE.MeshStandardMaterial({
+        color: 0xffd000,
+        metalness: 0.8,
+        roughness: 0.2
+      });
+
+      // Torso / Kimono
+      const torsoGeo = new THREE.CylinderGeometry(0.38, 0.32, 1.1, 16);
+      const torso = new THREE.Mesh(torsoGeo, bodyMat);
+      torso.position.y = 1.0;
+      torso.castShadow = true;
+      characterGroup.add(torso);
+
+      // Flowing Haori Coat (Back and Wings)
+      const haoriGeo = new THREE.CylinderGeometry(0.48, 0.75, 1.4, 16, 1, true, -Math.PI * 0.75, Math.PI * 1.5);
+      const haori = new THREE.Mesh(haoriGeo, darkMat);
+      haori.position.y = 0.85;
+      haori.material.side = THREE.DoubleSide;
+      characterGroup.add(haori);
+
+      // Belt / Obi (Red)
+      const beltGeo = new THREE.CylinderGeometry(0.41, 0.41, 0.22, 16);
+      const belt = new THREE.Mesh(beltGeo, redMat);
+      belt.position.y = 0.85;
+      characterGroup.add(belt);
+
+      // Neck & Head
+      const neckGeo = new THREE.CylinderGeometry(0.12, 0.14, 0.25, 12);
+      const neck = new THREE.Mesh(neckGeo, skinMat);
+      neck.position.y = 1.62;
+      characterGroup.add(neck);
+
+      const headGeo = new THREE.SphereGeometry(0.32, 16, 16);
+      const head = new THREE.Mesh(headGeo, skinMat);
+      head.position.y = 1.95;
+      characterGroup.add(head);
+
+      // Anime Spiky Hair (Multiple cone clusters in 3D)
+      const hairMat = new THREE.MeshToonMaterial({ color: 0xf8fafc });
+      const spikeGeo = new THREE.ConeGeometry(0.12, 0.55, 6);
+      for (let i = 0; i < 9; i++) {
+        const spike = new THREE.Mesh(spikeGeo, hairMat);
+        const angle = (i / 9) * Math.PI * 1.4 - Math.PI * 0.7;
+        spike.position.set(Math.sin(angle) * 0.28, 2.15 + Math.cos(angle) * 0.08, Math.cos(angle) * 0.2 - 0.05);
+        spike.rotation.z = -angle * 0.8;
+        spike.rotation.x = -0.3;
+        characterGroup.add(spike);
+      }
+
+      // Legs / Hakama Pants
+      const legGeo = new THREE.CylinderGeometry(0.22, 0.28, 1.0, 12);
+      const leftLeg = new THREE.Mesh(legGeo, darkMat);
+      leftLeg.position.set(-0.2, 0.4, 0);
+      characterGroup.add(leftLeg);
+
+      const rightLeg = new THREE.Mesh(legGeo, darkMat);
+      rightLeg.position.set(0.2, 0.4, 0);
+      characterGroup.add(rightLeg);
+
+      // Katana Sword Group
+      swordGroup = new THREE.Group();
+      const scabbardGeo = new THREE.BoxGeometry(0.06, 1.4, 0.08);
+      const scabbard = new THREE.Mesh(scabbardGeo, bodyMat);
+      scabbard.position.y = -0.4;
+      swordGroup.add(scabbard);
+
+      // Tsuba (Guard)
+      const tsubaGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 16);
+      const tsuba = new THREE.Mesh(tsubaGeo, goldMat);
+      tsuba.position.y = 0.3;
+      swordGroup.add(tsuba);
+
+      // Handle (Tsuka)
+      const handleGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.45, 12);
+      const handle = new THREE.Mesh(handleGeo, redMat);
+      handle.position.y = 0.55;
+      swordGroup.add(handle);
+
+      swordGroup.position.set(0.42, 0.85, 0.1);
+      swordGroup.rotation.z = -0.4;
+      swordGroup.rotation.x = 0.2;
+      characterGroup.add(swordGroup);
+
+      // Add Toon Outline Mesh (Inverted Hull technique)
+      torso.add(createOutlineMesh(torsoGeo, 0.02));
+      head.add(createOutlineMesh(headGeo, 0.02));
+
+      scene.add(characterGroup);
+    }
+
+    // Helper for Manga Black Ink Outlines
+    function createOutlineMesh(geometry, thickness) {
+      const outlineMat = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        side: THREE.BackSide
+      });
+      const outline = new THREE.Mesh(geometry, outlineMat);
+      outline.scale.multiplyScalar(1 + thickness);
+      return outline;
+    }
+
+    // 3D Efekt Katmanı (Kapalı)
+    function build3DOnomatopoeia() {
+      sfxGroup = new THREE.Group();
+      sfxGroup.visible = false;
+      scene.add(sfxGroup);
+    }
+
+    // 3D Manga Speed Lines & Sparks (Disabled / off by default)
+    function build3DParticles() {
+      const particleCount = 450;
+      const geom = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const colors = new Float32Array(particleCount * 3);
+
+      for (let i = 0; i < particleCount; i++) {
+        const radius = 1.2 + Math.random() * 3.5;
+        const theta = Math.random() * Math.PI * 2;
+        const y = Math.random() * 4.5 - 0.5;
+
+        positions[i * 3] = Math.cos(theta) * radius;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = Math.sin(theta) * radius;
+
+        // Sparks & Lines (Cyan, Crimson, White)
+        if (i % 3 === 0) {
+          colors[i * 3] = 0; colors[i * 3 + 1] = 0.94; colors[i * 3 + 2] = 1.0;
+        } else if (i % 3 === 1) {
+          colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.16; colors[i * 3 + 2] = 0.29;
+        } else {
+          colors[i * 3] = 1.0; colors[i * 3 + 1] = 1.0; colors[i * 3 + 2] = 1.0;
+        }
+      }
+
+      geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      const mat = new THREE.PointsMaterial({
+        size: 0.065,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending
+      });
+
+      particleSystem = new THREE.Points(geom, mat);
+      particleSystem.visible = false; // Partiküller varsayılan olarak kesinlikle KAPALI
+      scene.add(particleSystem);
+    }
+
+    // Manga Floor Grid
+    function buildMangaFloor() {
+      const grid = new THREE.GridHelper(14, 28, 0xff2a4b, 0x1f2638);
+      grid.position.y = -0.05;
+      scene.add(grid);
+    }
+
+    // Camera Preset Controls
+    function setCameraPreset(preset) {
+      if (autoTour) toggleAutoTour();
+
+      document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+
+      switch (preset) {
+        case 'front':
+          animateCameraTo(0, 1.2, 5.2, 0, 0.9, 0);
+          document.getElementById('btn-front').classList.add('active');
+          break;
+        case 'side':
+          animateCameraTo(5.2, 1.2, 0, 0, 0.9, 0);
+          document.getElementById('btn-side').classList.add('active');
+          break;
+        case 'back':
+          animateCameraTo(0, 1.2, -5.2, 0, 0.9, 0);
+          document.getElementById('btn-back').classList.add('active');
+          break;
+        case 'low_hero':
+          // Dramatic Shonen low angle looking up at hero
+          animateCameraTo(1.8, 0.2, 3.2, 0, 0.9, 0);
+          document.getElementById('btn-low').classList.add('active');
+          break;
+        case 'top_down':
+          animateCameraTo(0.1, 7.5, 0.1, 0, 0.9, 0);
+          document.getElementById('btn-top').classList.add('active');
+          break;
+        case 'close_face':
+          animateCameraTo(0, 1.2, 2.4, 0, 0.9, 0);
+          document.getElementById('btn-close').classList.add('active');
+          break;
+      }
+    }
+
+    // Reset Orbit Pivot strictly to character center
+    function resetOrbitCenter() {
+      if (autoTour) toggleAutoTour();
+      animateCameraTo(0, 1.2, 5.2, 0, 0.9, 0);
+      document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+      const frontBtn = document.getElementById('btn-front');
+      if (frontBtn) frontBtn.classList.add('active');
+    }
+
+    // Smooth Camera Transition Interpolation
+    let targetCamPos = null;
+    let targetTargetPos = null;
+
+    function animateCameraTo(cx, cy, cz, tx, ty, tz) {
+      targetCamPos = new THREE.Vector3(cx, cy, cz);
+      targetTargetPos = new THREE.Vector3(tx, ty, tz);
+    }
+
+    function toggleAutoTour() {
+      autoTour = !autoTour;
+      const btn = document.getElementById('btn-auto-tour');
+      const label = document.getElementById('tour-label');
+      if (autoTour) {
+        btn.classList.add('active');
+        label.textContent = '⏸ Sinematik Turu Durdur';
+      } else {
+        btn.classList.remove('active');
+        label.textContent = '▶ Otomatik 360° Sinematik Tur';
+      }
+    }
+
+    function updateFov(val) {
+      camera.fov = parseFloat(val);
+      camera.updateProjectionMatrix();
+      document.getElementById('fov-val').textContent = `${val}°`;
+    }
+
+    function updateSpeed(val) {
+      orbitSpeed = 0.008 * parseFloat(val);
+      document.getElementById('speed-val').textContent = `${val}x`;
+    }
+
+    function toggleLayer(layer, state) {
+      if (layer === 'character' && characterGroup) characterGroup.visible = state;
+      if (layer === 'sfx' && sfxGroup) sfxGroup.visible = state;
+      if (layer === 'particles' && particleSystem) particleSystem.visible = state;
+      if (layer === 'sword' && swordGroup) swordGroup.visible = state;
+    }
+
+    function onWindowResize() {
+      const w = viewport.clientWidth;
+      const h = viewport.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+
+    // Main 3D Render Loop
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Auto Orbit Movement - Revolves in a perfect circle around controls.target
+      if (autoTour) {
+        const dx = camera.position.x - controls.target.x;
+        const dz = camera.position.z - controls.target.z;
+        const radius = Math.sqrt(dx * dx + dz * dz);
+        let angle = Math.atan2(dx, dz);
+        angle += orbitSpeed;
+        camera.position.x = controls.target.x + Math.sin(angle) * radius;
+        camera.position.z = controls.target.z + Math.cos(angle) * radius;
+        camera.lookAt(controls.target);
+      }
+
+      // Smooth Camera LERP towards target preset
+      if (targetCamPos) {
+        camera.position.lerp(targetCamPos, 0.08);
+        controls.target.lerp(targetTargetPos, 0.08);
+        if (camera.position.distanceTo(targetCamPos) < 0.05) {
+          targetCamPos = null;
+          targetTargetPos = null;
+        }
+      }
+
+      controls.update();
+
+      // Swirl 3D Particles (only if enabled)
+      if (particleSystem && particleSystem.visible) {
+        particleSystem.rotation.y += 0.003;
+      }
+
+      // Floating Onomatopoeia gentle bobbing
+      if (sfxGroup) {
+        const time = Date.now() * 0.002;
+        sfxGroup.children.forEach((sfx, idx) => {
+          sfx.position.y += Math.sin(time + idx * 1.5) * 0.0015;
+          // Keep text facing slightly towards camera
+          sfx.lookAt(camera.position);
+        });
+      }
+
+      // Update AI Frame Billboard texture based on orbital camera angle (2-Axis Pitch + Yaw)
+      if ((currentMode === 'frames' || currentMode === 'frames_high' || currentMode === 'scene02' || currentMode === 'scene03' || currentMode === 'scene04') && billboardMesh) {
+        billboardMesh.position.copy(controls.target);
+        billboardMesh.lookAt(camera.position);
+        const dx = camera.position.x - controls.target.x;
+        const dy = camera.position.y - controls.target.y;
+        const dz = camera.position.z - controls.target.z;
+        const horizDist = Math.sqrt(dx * dx + dz * dz);
+        const pitchDeg = (Math.atan2(dy, horizDist) * 180) / Math.PI;
+        
+        let deg = (Math.atan2(dx, dz) * 180 / Math.PI + 360) % 360;
+        const frameIdx = Math.min(72, Math.max(0, Math.floor((deg / 360) * 73)));
+        let targetTextures = preloadedFrameTextures;
+        
+        if (currentMode === 'frames_high') {
+          targetTextures = preloadedScene01HighTextures;
+        } else if (currentMode === 'frames') {
+          // 2-Axis Elevation Switching: If camera tilts up looking down at hero, switch to high-angle frames!
+          if (pitchDeg > 14 && preloadedScene01HighTextures.length > 0 && preloadedScene01HighTextures[frameIdx]) {
+            targetTextures = preloadedScene01HighTextures;
+          } else {
+            targetTextures = preloadedFrameTextures;
+          }
+        } else if (currentMode === 'scene02' && preloadedScene02Textures.length > 0 && preloadedScene02Textures[frameIdx]) {
+          targetTextures = preloadedScene02Textures;
+        } else if (currentMode === 'scene03' && preloadedScene03Textures.length > 0 && preloadedScene03Textures[frameIdx]) {
+          targetTextures = preloadedScene03Textures;
+        } else if (currentMode === 'scene04' && preloadedScene04Textures.length > 0 && preloadedScene04Textures[frameIdx]) {
+          targetTextures = preloadedScene04Textures;
+        }
+        if (targetTextures[frameIdx]) {
+          billboardMesh.material.map = targetTextures[frameIdx];
+          billboardMesh.material.needsUpdate = true;
+        }
+      }
+
+      // Update HUD Cam Readout
+      const dist = camera.position.distanceTo(controls.target).toFixed(1);
+      const pitch = Math.round((camera.rotation.x * 180) / Math.PI);
+      const yaw = Math.round((camera.rotation.y * 180) / Math.PI);
+      hudCamReadout.textContent = `PITCH: ${pitch}° | YAW: ${yaw}° | DIST: ${dist}m`;
+
+      renderer.render(scene, camera);
+    }
+
+    // Mode Switcher: PLY Point Cloud, Dense Splat, Multi-Angle 73 Frames, Scene 02, 03, 04, or Toon
+    let currentMode = 'ply';
+    let plyPointsMesh = null;
+    let densePointsMesh = null;
+    let billboardMesh = null;
+    let preloadedFrameTextures = [];
+    let preloadedScene01HighTextures = [];
+    let preloadedScene02Textures = [];
+    let preloadedScene03Textures = [];
+    let preloadedScene04Textures = [];
+
+    // Preload the 73 generated orbit frames (both Scene 01 and Scene 02)
+    function preloadOrbitFrames() {
+      const loader = new THREE.TextureLoader();
+      for (let i = 0; i < 73; i++) {
+        const frameNum = String(i).padStart(3, '0');
+        loader.load(`frames/frame_${frameNum}.png`, (tex) => {
+          preloadedFrameTextures[i] = tex;
+        });
+        const frameNum4 = String(i).padStart(4, '0');
+        loader.load(`frames_scene01_high/frame_${frameNum4}.png`, (tex) => {
+          preloadedScene01HighTextures[i] = tex;
+        }, undefined, () => {});
+        loader.load(`frames_scene02/frame_${frameNum4}.png`, (tex) => {
+          preloadedScene02Textures[i] = tex;
+        }, undefined, () => {});
+        loader.load(`frames_scene03/frame_${frameNum4}.png`, (tex) => {
+          preloadedScene03Textures[i] = tex;
+        }, undefined, () => {});
+        loader.load(`frames_scene04/frame_${frameNum4}.png`, (tex) => {
+          preloadedScene04Textures[i] = tex;
+        }, undefined, () => {});
+      }
+    }
+
+    // Load the real generated 3D PLY Point Cloud with exact geometric centering
+    function loadGeneratedPly() {
+      const loader = new THREE.PLYLoader();
+      loader.load('scene_01_3d_pointcloud.ply', (geometry) => {
+        geometry.computeVertexNormals();
+        geometry.center(); // Center point cloud bounding box strictly at (0, 0, 0)
+        const material = new THREE.PointsMaterial({
+          size: 0.038,
+          vertexColors: true
+        });
+        if (plyPointsMesh) scene.remove(plyPointsMesh);
+        plyPointsMesh = new THREE.Points(geometry, material);
+        plyPointsMesh.position.set(0, 0.9, 0); // Position exactly at orbit pivot (0, 0.9, 0)
+        scene.add(plyPointsMesh);
+        if (characterGroup) characterGroup.visible = false;
+        console.log('PLY Point Cloud centered and loaded successfully!');
+      }, undefined, (err) => {
+        console.log('PLY load fallback:', err);
+      });
+    }
+
+    // Helper to generate soft circular Gaussian Splat alpha kernel
+    function createGaussianSplatTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+      gradient.addColorStop(0.55, 'rgba(255, 255, 255, 0.9)');
+      gradient.addColorStop(0.85, 'rgba(255, 255, 255, 0.4)');
+      gradient.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(32, 32, 32, 0, Math.PI * 2);
+      ctx.fill();
+      const texture = new THREE.CanvasTexture(canvas);
+      return texture;
+    }
+
+    // Load Dense 3D Splat Model (243K points) for full 6-DOF inspection (top/bottom/diagonal)
+    let denseSplatLoaded = false;
+    let currentSplatSize = 0.065;
+    function loadDenseSplatPly() {
+      const btnDense = document.getElementById('btn-mode-dense');
+      if (btnDense && !denseSplatLoaded) {
+        btnDense.innerHTML = '<span>⏳ 3D Splat Yükleniyor...</span>';
+      }
+      const loader = new THREE.PLYLoader();
+      loader.load('scene_01_dense_splat.ply', (geometry) => {
+        geometry.computeVertexNormals();
+        geometry.center();
+        const splatTexture = createGaussianSplatTexture();
+        const material = new THREE.PointsMaterial({
+          size: currentSplatSize,
+          map: splatTexture,
+          vertexColors: true,
+          transparent: true,
+          opacity: 0.98,
+          depthWrite: true,
+          depthTest: true,
+          alphaTest: 0.06,
+          sizeAttenuation: true
+        });
+        if (densePointsMesh) scene.remove(densePointsMesh);
+        densePointsMesh = new THREE.Points(geometry, material);
+        densePointsMesh.position.set(0, 0.9, 0);
+        densePointsMesh.visible = (currentMode === 'dense');
+        scene.add(densePointsMesh);
+        denseSplatLoaded = true;
+        if (btnDense) {
+          btnDense.innerHTML = '<span>✨ Sahne 01: Yoğun 3D Splat (243K Nokta)</span>';
+        }
+        console.log('Dense 3D Splat loaded with continuous surface blending!');
+      }, (xhr) => {
+        if (xhr.lengthComputable && btnDense && !denseSplatLoaded) {
+          const pct = Math.round((xhr.loaded / xhr.total) * 100);
+          btnDense.innerHTML = `<span>⏳ 3D Splat Yükleniyor (${pct}%)...</span>`;
+        }
+      }, (err) => {
+        console.log('Dense PLY load error:', err);
+      });
+    }
+
+    function updateSplatSize(val) {
+      currentSplatSize = parseFloat(val);
+      if (densePointsMesh && densePointsMesh.material) {
+        densePointsMesh.material.size = currentSplatSize;
+        densePointsMesh.material.needsUpdate = true;
+      }
+      const valElem = document.getElementById('splat-size-val');
+      if (valElem) valElem.textContent = val;
+    }
+
+    // Create Multi-Angle AI Billboard
+    function createAiBillboard() {
+      const geo = new THREE.PlaneGeometry(3.2, 3.2);
+      const mat = new THREE.MeshBasicMaterial({
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      billboardMesh = new THREE.Mesh(geo, mat);
+      billboardMesh.position.set(0, 0.9, 0);
+      billboardMesh.visible = false;
+      scene.add(billboardMesh);
+    }
+
+    function switchSceneMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-mode-${mode}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (mode === 'ply') {
+        if (plyPointsMesh) plyPointsMesh.visible = true;
+        if (densePointsMesh) densePointsMesh.visible = false;
+        if (billboardMesh) billboardMesh.visible = false;
+        if (characterGroup) characterGroup.visible = false;
+      } else if (mode === 'dense') {
+        if (plyPointsMesh) plyPointsMesh.visible = false;
+        if (densePointsMesh) densePointsMesh.visible = true;
+        if (billboardMesh) billboardMesh.visible = false;
+        if (characterGroup) characterGroup.visible = false;
+      } else if (mode === 'frames' || mode === 'frames_high' || mode === 'scene02' || mode === 'scene03' || mode === 'scene04') {
+        if (plyPointsMesh) plyPointsMesh.visible = false;
+        if (densePointsMesh) densePointsMesh.visible = false;
+        if (billboardMesh) billboardMesh.visible = true;
+        if (characterGroup) characterGroup.visible = false;
+      } else {
+        if (plyPointsMesh) plyPointsMesh.visible = false;
+        if (densePointsMesh) densePointsMesh.visible = false;
+        if (billboardMesh) billboardMesh.visible = false;
+        if (characterGroup) characterGroup.visible = true;
+      }
+    }
+
+    // 3D Model Dropzone (.ply or .gltf)
+    const assetFileInput = document.getElementById('asset-file-input');
+    assetFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+      const reader = new FileReader();
+
+      if (fileName.endsWith('.ply')) {
+        reader.onload = function(evt) {
+          const loader = new THREE.PLYLoader();
+          const geometry = loader.parse(evt.target.result);
+          geometry.computeVertexNormals();
+
+          const material = new THREE.PointsMaterial({
+            size: 0.035,
+            vertexColors: geometry.hasAttribute('color')
+          });
+
+          if (plyPointsMesh) scene.remove(plyPointsMesh);
+          plyPointsMesh = new THREE.Points(geometry, material);
+          scene.add(plyPointsMesh);
+          switchSceneMode('ply');
+          alert('Yeni .PLY Nokta Bulutu başarıyla yüklendi!');
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    // Start 3D Engine on load
+    window.addEventListener('DOMContentLoaded', () => {
+      init3DScene();
+      preloadOrbitFrames();
+      createAiBillboard();
+      loadGeneratedPly();
+      loadDenseSplatPly();
+    });
+  </script>
+</body>
+</html>

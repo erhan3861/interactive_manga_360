@@ -1,0 +1,7 @@
+index copy.html
+check_*.py
+find_*.py
+ws_monitor.py
+*.log
+__pycache__/
+.DS_Store
