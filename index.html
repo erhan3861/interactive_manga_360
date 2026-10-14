@@ -686,14 +686,11 @@
           <span class="icon" style="color:var(--accent-cyan);">⚡</span>
         </h3>
         <div class="presets-grid" style="grid-template-columns: 1fr;">
-          <button class="btn-preset active mode-btn" id="btn-mode-ply" onclick="switchSceneMode('ply')">
-            <span>🌐 Sahne 01: 3D Nokta Bulutu (.PLY)</span>
-          </button>
-          <button class="btn-preset mode-btn" id="btn-mode-frames" onclick="switchSceneMode('frames')">
-            <span>🎞️ Sahne 01: Çift Eksen (Yatay + Dikey Açı)</span>
+          <button class="btn-preset active mode-btn" id="btn-mode-frames" onclick="switchSceneMode('frames')">
+            <span>🎞️ Sahne 01: Yatay Eksen (73 Açı)</span>
           </button>
           <button class="btn-preset mode-btn" id="btn-mode-frames-high" onclick="switchSceneMode('frames_high')" style="border-color: rgba(255, 190, 26, 0.4); color: #ffbe1a;">
-            <span>🚁 Sahne 01: Tepeden Kuşbakışı (73 Açı)</span>
+            <span>🚁 Sahne 01: Dikey Eksen (73 Açı)</span>
           </button>
           <button class="btn-preset mode-btn" id="btn-mode-scene02" onclick="switchSceneMode('scene02')">
             <span>🐿️ Sahne 02: Çocuk & Sincap (73 Açı)</span>
@@ -706,6 +703,9 @@
           </button>
           <button class="btn-preset mode-btn" id="btn-mode-toon" onclick="switchSceneMode('toon')">
             <span>🎨 3D Toon Karakter Şablonu</span>
+          </button>
+          <button class="btn-preset mode-btn" id="btn-mode-ply" onclick="switchSceneMode('ply')">
+            <span>🌐 Sahne 01: 3D Nokta Bulutu (.PLY)</span>
           </button>
         </div>
         <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.4rem; line-height:1.4;">
@@ -1254,12 +1254,7 @@
         if (currentMode === 'frames_high') {
           targetTextures = preloadedScene01HighTextures;
         } else if (currentMode === 'frames') {
-          // 2-Axis Elevation Switching: If camera tilts up looking down at hero, switch to high-angle frames!
-          if (pitchDeg > 14 && preloadedScene01HighTextures.length > 0 && preloadedScene01HighTextures[frameIdx]) {
-            targetTextures = preloadedScene01HighTextures;
-          } else {
-            targetTextures = preloadedFrameTextures;
-          }
+          targetTextures = preloadedFrameTextures;
         } else if (currentMode === 'scene02' && preloadedScene02Textures.length > 0 && preloadedScene02Textures[frameIdx]) {
           targetTextures = preloadedScene02Textures;
         } else if (currentMode === 'scene03' && preloadedScene03Textures.length > 0 && preloadedScene03Textures[frameIdx]) {
@@ -1282,8 +1277,8 @@
       renderer.render(scene, camera);
     }
 
-    // Mode Switcher: PLY Point Cloud, Dense Splat, Multi-Angle 73 Frames, Scene 02, 03, 04, or Toon
-    let currentMode = 'ply';
+    // Mode Switcher: Multi-Angle Frames (Yatay / Dikey), Scene 02, 03, 04, Toon, PLY Point Cloud
+    let currentMode = 'frames';
     let plyPointsMesh = null;
     let densePointsMesh = null;
     let billboardMesh = null;
@@ -1330,6 +1325,7 @@
         if (plyPointsMesh) scene.remove(plyPointsMesh);
         plyPointsMesh = new THREE.Points(geometry, material);
         plyPointsMesh.position.set(0, 0.9, 0); // Position exactly at orbit pivot (0, 0.9, 0)
+        plyPointsMesh.visible = (currentMode === 'ply');
         scene.add(plyPointsMesh);
         if (characterGroup) characterGroup.visible = false;
         console.log('PLY Point Cloud centered and loaded successfully!');
@@ -1420,7 +1416,7 @@
       });
       billboardMesh = new THREE.Mesh(geo, mat);
       billboardMesh.position.set(0, 0.9, 0);
-      billboardMesh.visible = false;
+      billboardMesh.visible = true;
       scene.add(billboardMesh);
     }
 
@@ -1490,6 +1486,7 @@
       createAiBillboard();
       loadGeneratedPly();
       loadDenseSplatPly();
+      switchSceneMode('frames');
     });
   </script>
 </body>
