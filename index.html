@@ -702,7 +702,7 @@
             <span>🦌 Sahne 04: Çocuk & Geyik (73 Açı)</span>
           </button>
           <button class="btn-preset mode-btn" id="btn-mode-scene05" onclick="switchSceneMode('scene05')">
-            <span>🐢 Sahne 05: Kaplumbağa Terbiyecisi</span>
+            <span>🐢 Sahne 05: Kaplumbağa Terbiyecisi (73 Açı)</span>
           </button>
           <button class="btn-preset mode-btn" id="btn-mode-toon" onclick="switchSceneMode('toon')">
             <span>🎨 3D Toon Karakter Şablonu</span>
@@ -1245,7 +1245,7 @@
         billboardMesh.position.copy(controls.target);
         billboardMesh.lookAt(camera.position);
 
-        if (currentMode === 'scene05') {
+        if (currentMode === 'scene05' && preloadedScene05Textures.length === 0) {
           if (preloadedScene05Texture && billboardMesh.material.map !== preloadedScene05Texture) {
             billboardMesh.material.map = preloadedScene05Texture;
             billboardMesh.material.needsUpdate = true;
@@ -1271,6 +1271,8 @@
             targetTextures = preloadedScene03Textures;
           } else if (currentMode === 'scene04' && preloadedScene04Textures.length > 0 && preloadedScene04Textures[frameIdx]) {
             targetTextures = preloadedScene04Textures;
+          } else if (currentMode === 'scene05' && preloadedScene05Textures.length > 0 && preloadedScene05Textures[frameIdx]) {
+            targetTextures = preloadedScene05Textures;
           }
           if (targetTextures[frameIdx]) {
             billboardMesh.material.map = targetTextures[frameIdx];
@@ -1298,6 +1300,7 @@
     let preloadedScene02Textures = [];
     let preloadedScene03Textures = [];
     let preloadedScene04Textures = [];
+    let preloadedScene05Textures = [];
     let preloadedScene05Texture = null;
 
     // Preload the 73 generated orbit frames (both Scene 01 and Scene 02)
@@ -1323,6 +1326,9 @@
         }, undefined, () => {});
         loader.load(`frames_scene04/frame_${frameNum4}.png`, (tex) => {
           preloadedScene04Textures[i] = tex;
+        }, undefined, () => {});
+        loader.load(`frames_scene05/frame_${frameNum4}.png`, (tex) => {
+          preloadedScene05Textures[i] = tex;
         }, undefined, () => {});
       }
     }
@@ -1443,10 +1449,14 @@
 
       if (mode === 'scene05') {
         if (billboardMesh) {
-          billboardMesh.scale.set(500 / 935, 1, 1);
-          if (preloadedScene05Texture) {
-            billboardMesh.material.map = preloadedScene05Texture;
-            billboardMesh.material.needsUpdate = true;
+          if (preloadedScene05Textures.length > 0) {
+            billboardMesh.scale.set(1, 1, 1);
+          } else {
+            billboardMesh.scale.set(500 / 935, 1, 1);
+            if (preloadedScene05Texture) {
+              billboardMesh.material.map = preloadedScene05Texture;
+              billboardMesh.material.needsUpdate = true;
+            }
           }
         }
       } else if (billboardMesh) {
